@@ -21,6 +21,21 @@ pairs(~strength + age + fine + coarse + super + water + ash + blast + cement)
 # Check the correlation matrix for any high correlation values
 cor(data)
 
+# Checking out the full model
+stepmod=lm(strength ~ log(age) + fine + coarse + super + water + ash + blast + cement)
+fullfit=fitted(stepmod)
+errors=strength-fitted(stepmod)
+
+plot(fullfit, errors)
+plot(cement, errors)
+plot(blast, errors)
+plot(ash, errors)
+plot(water, errors)
+plot(age, errors)
+plot(super, errors)
+plot(coarse, errors)
+plot(fine, errors)
+
 #Stepwise Regression
 basemod=lm(strength~1)
 stepmod=lm(strength ~ age + fine + coarse + super + water + ash + blast + cement)
@@ -35,6 +50,8 @@ errors=strength-fittedstep
 summary(stepwise)
 
 # Check residuals vs predictor for any transformations that need to be made to meet LINE conditions
+
+plot(stepwise)
 
 plot(fittedstep, errors, xlab="Fitted", ylab="Residuals")
 plot(cement, errors)
@@ -79,11 +96,11 @@ qqline(errors)
 mod$cp
 # Since none of our Mallow's Cp is close to p, we will not consider this measure
 
-# We then see that our best subset model by adjusted R2 (full model) has more predictors, looks similar, and has a lower adjusted R2 then our stepwise regression
+# We then see that our best subset model by adjusted R2 (full model) has more predictors and looks similar then our stepwise regression
 # As a result, we will choose our stepwise regression model
 
 # Log transform age from our stepwise regression model
-library(MASS)
+
 stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
               ash)
 
@@ -112,6 +129,7 @@ r_ext[n]
 # Delete points individually, rerun regression and check for influential y values
 data<-data[-382,]
 rownames(data) <- 1:nrow(data)
+
 # Check our regression with the studentized residuals deleted 382, 384, 15, 9, 405
 cement=data$Cement
 blast=data$`Blast Furnace`
@@ -179,10 +197,40 @@ shapiro.test(errors)
 
 # We delete 2 externally studentized points and now our regression achieves normality by the Shapiro Test
 
+# We will now check for high leverage points with the hat matrix 
+lev=sort(hatvalues(stepwise))
+cutoff=(3*sum(lev))/length(lev)
+n=length(lev)
+lev[which(lev>cutoff)]
 
+# Check LINE conditions
+cement=data$Cement
+blast=data$`Blast Furnace`
+ash=data$Ash
+water=data$Water
+super=data$SuperPlasticizer
+coarse=data$CoarseAgg
+fine=data$FineAgg
+age=data$Age
+strength=data$Strength
+
+stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
+              ash)
+
+plot(fittedstep, errors, xlab="Fitted", ylab="Residuals")
+plot(cement, errors)
+plot(blast, errors)
+plot(ash, errors)
+plot(water, errors)
+plot(age, errors)
+plot(super, errors)
+
+# Check the normality condition
+qqnorm(errors)
+qqline(errors)
 # We now check residuals vs predictor for other variables we did not include with general linear F tests
 combined1=cement*water
-combined2=cement*age
+combined2=cement*log(age)
 combined3=cement^2
 combined4=cement*coarse
 combined5=water*coarse
@@ -194,24 +242,26 @@ combined11=blast*ash
 combined12=super*water
 combined13=super*cement
 combined14=super^2
+combined15=(log(age))^2
+combined16=super*log(age)
 
-add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14 , test="F")
+add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14+combined15+combined16 , test="F")
 
 # From the general linear F Test we add super^2 and apply again
 stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
               ash+ I(super^2))
 
-add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14 , test="F")
+add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14+combined15+combined16 , test="F")
 
 # From the general linear F test we add cement*age and apply again
 stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash+ I(super^2) + cement*age)
+              ash+ I(super^2) + super*log(age))
 
-add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14 , test="F")
+add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14+combined15+combined16 , test="F")
 
-# From the general linear F test we add super*water and apply again
+# From the general linear F test we add super*water
 stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash+ I(super^2) + cement*age + super*water)
+              ash+ I(super^2) + super*log(age) + super*water)
 
 
 # We again check the LINE conditions with our new parameters that we added
@@ -240,7 +290,10 @@ plot(ash, errors)
 plot(water, errors)
 plot(age, errors)
 plot(super, errors)
+plot(I(super^2), errors)
+plot(cement*log(age), errors)
+plot(super*water, errors)
 
 # Our final model is the following below
 stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash+ I(super^2) + cement*age + super*water)
+              ash+ I(super^2) + super*log(age) + super*water)
