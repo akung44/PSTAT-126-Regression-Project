@@ -1,0 +1,154 @@
+---
+title: "PSTAT 126"
+author: "Brian Ngo, Andrew Chu"
+Section: "..."
+output: word_document
+---
+
+##1. Introduction
+Our project is focused around studying the compressive strength of concrete (strength), using 8 attributes within the "Concrete Compressive Strength Data Set" provided by UCI Machine Learning Repository. In particular we want to figure out which attributes can be used in our model to predict concrete compressive strength measured in megapascal pressure units (MPa). We would also like to determine which predictors are best used in estimating compressive strength.
+
+##2. Questions of Interest
+Can the compressive strength of concrete be predicted by the amount of cement, blast furnace slag, fly ash, water, super plasticizer, coarse aggregate, fine aggregate added to the mixture as well as the age of concrete?
+
+Might want to do a predictions of concrete with age....and concrete content of....
+i.e: What should be the expeced ljhthe only thing we need to figure out is the fact strength of concrete with an age of ... and concrete content of ...
+
+
+##3. Regression Method
+We begin by building a model that is able to meet all four LINE conditions before answering our questions of interests. We will do this by conducting residual analysis on our models.
+
+Once we create a model with all LINE conditions met we are able to draw conclusions as to which predictors will be best in predicting compressive strength.
+
+##4. Regression Analysis, Results, and Interpretation
+
+###Model Building Process
+
+**Determining Multicollinearity from the Data.**
+
+We begin by plotting the scatterplot matrix which includes both the response and all predictors.
+
+```{r}
+library(leaps)
+library(MASS)
+
+data=read.table("Concrete_Data.txt", sep="\t", header=TRUE)
+names(data)<-c("Cement", "Blast Furnace", "Ash", "Water", "SuperPlasticizer", "CoarseAgg",
+               "FineAgg", "Age", "Strength")
+
+cement=data$Cement
+blast=data$`Blast Furnace`
+ash=data$Ash
+water=data$Water
+super=data$SuperPlasticizer
+coarse=data$CoarseAgg
+fine=data$FineAgg
+age=data$Age
+strength=data$Strength
+pairs(~strength + age + fine + coarse + super + water + ash + blast + cement) #might not need this
+cor(data) #no issues with multicolinearity
+```
+
+From the scatterplot matrix there seems to be a positive relationship of strength with our predictors: age, cement, and super. 
+We can also discern a negative relationship of strength with our predictor, water.
+
+By observing the correlation matrix we can then determine if there will be any multicollinearity issues.
+
+```{r}
+cor(data) #no issues with multicolinearity
+```
+
+From the above plot, there is no severe correlation issues between our predictors. Multicollinearity will not be too problematic in our regression. So there is no need to remove any of the predictors.
+
+**Residual Diagnostics**
+
+```{r}
+#might want to consider using stepwise with different criterion and see if we get the same model? F-test/BIC?
+stepmod=lm(strength ~ log(age) + fine + coarse + super + water + ash + blast + cement)
+fullfit=fitted(stepmod)
+shapiro.test(stepmod$residuals) #errors not normally distributed, really low p value....
+errors=strength-fitted(stepmod)
+plot(fullfit, errors)
+plot(cement, errors)
+plot(blast, errors)
+plot(ash, errors)
+plot(water, errors)
+plot(age, errors)
+plot(super, errors)
+plot(coarse, errors)
+plot(fine, errors)
+```
+
+We conduct a stepwise regression that will help us select which attributes are best used to predict our response (strength).
+
+```{r}
+#Stepwise Regression
+basemod=lm(strength~1)
+stepmod=lm(strength ~ age + fine + coarse + super + water + ash + blast + cement)
+step(basemod, scope = list(lower=basemod, upper=stepmod))
+
+stepwise=lm(strength ~ cement + super + age + blast + water + 
+              ash)
+
+fittedstep=fitted(stepwise)
+errors=strength-fittedstep
+```
+
+The results suggests that building our regression off of cement, super, age, blast, water, and ash will provide the best fit for our response, strength. 
+
+```{r}
+summary(stepwise)
+```
+
+
+Our p-values are all less than alpha = .05 which means that our predictors are significant.However, this model only explains 61% of variation. Nonetheless we continue with residual analysis to determine if LINE conditions are being met.
+
+
+```{r}
+# Check residuals vs predictor for any transformations that need to be made to meet LINE conditions
+
+plot(stepwise)
+
+plot(fittedstep, errors, xlab="Fitted", ylab="Residuals")
+plot(cement, errors)
+plot(blast, errors)
+plot(ash, errors)
+plot(water, errors)
+plot(age, errors)
+plot(super, errors)
+
+# Check for normality
+qqnorm(errors)
+qqline(errors)
+
+shapiro.test(errors)
+```
+
+It appears our residual vs age displays a curve, which suggest we should use a log transformation to correct it so that our model is more linear.
+
+
+
+```{r}
+stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
+              ash)
+
+fittedstep=fitted(stepwise)
+errors=strength-fittedstep
+plot(fittedstep, errors, xlab="fitted", ylab="residuals")
+plot(cement, errors)
+plot(blast, errors)
+plot(ash, errors)
+plot(water, errors)
+plot(age, errors)
+plot(super, errors)
+
+qqnorm(errors)
+qqline(errors)
+
+shapiro.test(errors)
+```
+
+Doing so corrects the linearity condition of our model. Applying log to age also appears to correct our normality condition.
+
+
+
