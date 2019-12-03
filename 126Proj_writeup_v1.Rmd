@@ -1,6 +1,6 @@
 ---
 title: "PSTAT 126"
-author: "Brian Ngo, Andrew Chu"
+author: "Brian Ngo, Andrew Kung"
 Section: "..."
 output: word_document
 ---
@@ -148,7 +148,77 @@ qqline(errors)
 shapiro.test(errors)
 ```
 
-Doing so corrects the linearity condition of our model. Applying log to age also appears to correct our normality condition.
+Doing so corrects the linearity condition of our model. However, applying a log transform to age does no satisfy our normality condition as we can see from the result of our Shapiro-Wilk normality test. As a result, we must use externally studentized deleted residuals and delete each point individually until our model meets the normality condition.
 
+```{r}
+# Find the externally studentized residuals outliers with absolute value greater than 3
+r_ext=sort(rstudent(stepwise))
+n<-length(strength)
+r_ext[n]
 
+# Delete points individually, rerun regression and check for influential y values
+data<-data[-382,]
+rownames(data) <- 1:nrow(data)
 
+# Search for the next highest point and delete it
+r_ext=sort(rstudent(stepwise))
+n<-length(strength)
+r_ext[n]
+
+data<-data[-383,]
+rownames(data) <- 1:nrow(data)
+
+cement=data$Cement
+blast=data$`Blast Furnace`
+ash=data$Ash
+water=data$Water
+super=data$SuperPlasticizer
+coarse=data$CoarseAgg
+fine=data$FineAgg
+age=data$Age
+strength=data$Strength
+
+stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
+              ash)
+
+fittedstep=fitted(stepwise)
+errors=strength-fittedstep
+
+qqnorm(errors)
+qqline(errors)
+
+shapiro.test(errors)
+```
+
+We delete 2 outliers as defined by externally studentized points and now our Shapiro-Wilk test confirms that we have achieved the normality condition.
+
+We will now check for interaction terms with the general linear F-tests.
+
+```{r}
+# Our Possible interaction terms
+combined1=super^2
+combined2=super*log(age)
+combined3=super*water
+
+# F-tests to see which terms to add
+add1(stepwise, ~.+combined1+combined2+combined3, test="F")
+
+# From the general linear F Test we add super^2 and apply again
+stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
+              ash+ I(super^2))
+
+add1(stepwise, ~.+combined1+combined2+combined3, test="F")
+
+# From the general linear F test we add cement*age and apply again
+stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
+              ash+ I(super^2) + super*log(age))
+
+add1(stepwise, ~.+combined1+combined2+combined3, test="F")
+
+# From the general linear F test we add super*water
+stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
+              ash+ I(super^2) + super*log(age) + super*water)
+
+```
+
+We now have our final model:
