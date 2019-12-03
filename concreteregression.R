@@ -297,3 +297,8 @@ plot(super*water, errors)
 # Our final model is the following below
 stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
               ash+ I(super^2) + super*log(age) + super*water)
+
+base=lm(strength ~ cement + super + age + blast + water + 
+     ash)
+plot(fitted(base), strength-fitted(base))
+plot(base)
