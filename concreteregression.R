@@ -21,22 +21,7 @@ pairs(~strength + age + fine + coarse + super + water + ash + blast + cement)
 # Check the correlation matrix for any high correlation values
 cor(data)
 
-# Checking out the full model
-stepmod=lm(strength ~ log(age) + fine + coarse + super + water + ash + blast + cement)
-fullfit=fitted(stepmod)
-errors=strength-fitted(stepmod)
-
-plot(fullfit, errors)
-plot(cement, errors)
-plot(blast, errors)
-plot(ash, errors)
-plot(water, errors)
-plot(age, errors)
-plot(super, errors)
-plot(coarse, errors)
-plot(fine, errors)
-
-#Stepwise Regression
+# Apply stepwise regression
 basemod=lm(strength~1)
 stepmod=lm(strength ~ age + fine + coarse + super + water + ash + blast + cement)
 step(basemod, scope = list(lower=basemod, upper=stepmod))
@@ -49,88 +34,115 @@ errors=strength-fittedstep
 
 summary(stepwise)
 
-# Check residuals vs predictor for any transformations that need to be made to meet LINE conditions
+# Check for interaction terms
+super2=super^2
+superage=super*age
+cementwater=cement*water
+cementage=cement*age
+
+estimate=fitted(stepwise)
+errors=strength-estimate
 
 plot(stepwise)
-
-plot(fittedstep, errors, xlab="Fitted", ylab="Residuals")
+plot(estimate, errors, ylab="Residuals", xlab="Fitted")
 plot(cement, errors)
 plot(blast, errors)
 plot(ash, errors)
 plot(water, errors)
 plot(age, errors)
 plot(super, errors)
-
-# Check for normality
-qqnorm(errors)
-qqline(errors)
-
+plot(super2, errors)
+plot(superage, errors)
 shapiro.test(errors)
+qqnorm(errors)
+qqline(errors)
 
-# Try Best Subset Regression to see if there is a better model
-reg=regsubsets(subset(data, select=-Strength), strength, nvmax=10)
-mod=summary(reg)
-mod$which
-mod$adjr2
+# F-tests to see which terms to add
+add1(stepwise, ~.+super2+superage+cementwater+cementage, test="F")
 
-r2mod=lm(strength ~ age + fine + coarse + super + water + ash + blast + cement)
-summary(r2mod)
+# From the general linear F Test we add super^2 and apply again
+stepwise=lm(strength ~ cement + super + age + blast + water + 
+              ash+ super*age)
 
-# Check LINE conditions of Best Subset with adjusted R2
+# F-tests to see which terms to add
+add1(stepwise, ~.+super2+superage+cementwater+cementage, test="F")
 
-fittedr2=fitted(r2mod)
-errors=strength-fittedr2
+stepwise=lm(strength ~ cement + super + age + blast + water + 
+              ash+ super*age + I(super^2))
 
-plot(fittedr2, errors, xlab="Fitted", ylab="Residuals")
+estimate=fitted(stepwise)
+errors=strength-estimate
+
+plot(stepwise)
+plot(estimate, errors, ylab="Residuals", xlab="Fitted")
 plot(cement, errors)
 plot(blast, errors)
 plot(ash, errors)
 plot(water, errors)
 plot(age, errors)
 plot(super, errors)
-
+plot(super2, errors)
+plot(superage, errors)
+shapiro.test(errors)
 qqnorm(errors)
 qqline(errors)
 
-# Check which model has the best Mallow's Cp
-mod$cp
-# Since none of our Mallow's Cp is close to p, we will not consider this measure
-
-# We then see that our best subset model by adjusted R2 (full model) has more predictors and looks similar then our stepwise regression
-# As a result, we will choose our stepwise regression model
-
-# Log transform age from our stepwise regression model
-
+# Log transform age because non-linear
 stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash)
+              ash+ super*log(age) + I(super^2))
 
-fittedstep=fitted(stepwise)
-errors=strength-fittedstep
+estimate=fitted(stepwise)
+errors=strength-estimate
 
-plot(fittedstep, errors, xlab="fitted", ylab="residuals")
+plot(stepwise)
+plot(estimate, errors, ylab="Residuals", xlab="Fitted")
 plot(cement, errors)
 plot(blast, errors)
 plot(ash, errors)
 plot(water, errors)
 plot(age, errors)
 plot(super, errors)
+plot(super2, errors)
+plot(superage, errors)
+shapiro.test(errors)
+qqnorm(errors)
+qqline(errors)
+
+
+# Try Box-Cox transform for fanning effect
+trans=boxcox(strength ~ cement + super + log(age) + blast + water + 
+              ash+ super*log(age)+ I(super^2), data=data, lambda=seq(0, 1, length=10))
+
+str=strength^(0.6)
+stepwise2=lm(str ~ cement + super + log(age) + blast + water + 
+              ash+ super*log(age)+ I(super^2) )
+estimate=fitted(stepwise2)
+errors=strength-estimate
+plot(estimate, errors, xlab="Fitted", ylab="Residuals")
+plot(stepwise2)
 
 qqnorm(errors)
 qqline(errors)
 
-shapiro.test(errors)
+# Check Cook's Distance for influential points
+cookdist=(cooks.distance(stepwise))
+plot(cookdist)
 
-# Studentized residuals outliers
+# DFFITS Line for influential points
+dfvals=(dffits(stepwise))
+cutoff=2*sqrt((10/(n-10-1)))
+plot(dfvals)
+abline(h=0.1981267, col='red')
 
+# Find externally studentized residual
 r_ext=sort(rstudent(stepwise))
 n<-length(strength)
 r_ext[n]
 
-# Delete points individually, rerun regression and check for influential y values
+# Delete externally studentized residual
 data<-data[-382,]
 rownames(data) <- 1:nrow(data)
 
-# Check our regression with the studentized residuals deleted 382, 384, 15, 9, 405
 cement=data$Cement
 blast=data$`Blast Furnace`
 ash=data$Ash
@@ -142,163 +154,27 @@ age=data$Age
 strength=data$Strength
 
 stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash)
+              ash+ super*log(age)+ I(super^2) )
 
-fittedstep=fitted(stepwise)
-errors=strength-fittedstep
+# Check whether interaction term cement*water has effect on concrete strength
+stepwise2=lm(strength ~ cement + super + log(age) + blast + water + 
+               ash+ super*log(age)+ I(super^2) + cement*water )
 
-# Check the LINE conditions in residual vs predictor
+anova(stepwise, stepwise2)
 
-plot(fittedstep, errors, xlab="Fitted", ylab="Residuals")
-plot(cement, errors)
-plot(blast, errors)
-plot(ash, errors)
-plot(water, errors)
-plot(age, errors)
-plot(super, errors)
-
-# Check the normality condition
-qqnorm(errors)
-qqline(errors)
-
-shapiro.test(errors)
-hist(errors)
-
-# Delete another point
-r_ext=sort(rstudent(stepwise))
-n<-length(strength)
-r_ext[n]
-
-data<-data[-383,]
-rownames(data) <- 1:nrow(data)
-
-#Check again to see if normality is achieved
-
-cement=data$Cement
-blast=data$`Blast Furnace`
-ash=data$Ash
-water=data$Water
-super=data$SuperPlasticizer
-coarse=data$CoarseAgg
-fine=data$FineAgg
-age=data$Age
-strength=data$Strength
-
-stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash)
-
-fittedstep=fitted(stepwise)
-errors=strength-fittedstep
-
-qqnorm(errors)
-qqline(errors)
-
+fit=fitted(stepwise)
+errors=strength-fit
 shapiro.test(errors)
 
-# We delete 2 externally studentized points and now our regression achieves normality by the Shapiro Test
+# Prediction Interval for strength
+p1=data.frame(blast=0, ash=0, cement=mean(cement), water=mean(water), super=mean(super),
+              age=mean(age))
 
-# We will now check for high leverage points with the hat matrix 
-lev=sort(hatvalues(stepwise))
-cutoff=(3*sum(lev))/length(lev)
-n=length(lev)
-lev[which(lev>cutoff)]
+predictstr=predict(stepwise, p1, se.fit = TRUE, interval = "prediction", level = 0.95)
+print(predictstr$fit)
 
-# Check LINE conditions
-cement=data$Cement
-blast=data$`Blast Furnace`
-ash=data$Ash
-water=data$Water
-super=data$SuperPlasticizer
-coarse=data$CoarseAgg
-fine=data$FineAgg
-age=data$Age
-strength=data$Strength
+# Confidence interval for strength
+p2=data.frame(blast=mean(blast), ash=mean(ash), cement=mean(cement), water=mean(water), super=mean(super), age=365)
 
-stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash)
-
-plot(fittedstep, errors, xlab="Fitted", ylab="Residuals")
-plot(cement, errors)
-plot(blast, errors)
-plot(ash, errors)
-plot(water, errors)
-plot(age, errors)
-plot(super, errors)
-
-# Check the normality condition
-qqnorm(errors)
-qqline(errors)
-# We now check residuals vs predictor for other variables we did not include with general linear F tests
-combined1=cement*water
-combined2=cement*log(age)
-combined3=cement^2
-combined4=cement*coarse
-combined5=water*coarse
-combined6=water*fine
-combined8=blast*fine
-combined9=water^2
-combined10=blast*cement
-combined11=blast*ash
-combined12=super*water
-combined13=super*cement
-combined14=super^2
-combined15=(log(age))^2
-combined16=super*log(age)
-
-add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14+combined15+combined16 , test="F")
-
-# From the general linear F Test we add super^2 and apply again
-stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash+ I(super^2))
-
-add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14+combined15+combined16 , test="F")
-
-# From the general linear F test we add cement*age and apply again
-stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash+ I(super^2) + super*log(age))
-
-add1(stepwise, ~.+combined1+combined2+combined3+combined4+combined5+combined6+combined8+combined9+combined10+combined11+combined12+combined13+combined14+combined15+combined16 , test="F")
-
-# From the general linear F test we add super*water
-stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash+ I(super^2) + super*log(age) + super*water)
-
-
-# We again check the LINE conditions with our new parameters that we added
-cement=data$Cement
-blast=data$`Blast Furnace`
-ash=data$Ash
-water=data$Water
-super=data$SuperPlasticizer
-coarse=data$CoarseAgg
-fine=data$FineAgg
-age=data$Age
-strength=data$Strength
-
-fittedstep=fitted(stepwise)
-errors=strength-fittedstep
-
-qqnorm(errors)
-qqline(errors)
-
-shapiro.test(errors)
-
-plot(fittedstep, errors, xlab="Fitted", ylab="Residuals")
-plot(cement, errors)
-plot(blast, errors)
-plot(ash, errors)
-plot(water, errors)
-plot(age, errors)
-plot(super, errors)
-plot(I(super^2), errors)
-plot(cement*log(age), errors)
-plot(super*water, errors)
-
-# Our final model is the following below
-stepwise=lm(strength ~ cement + super + log(age) + blast + water + 
-              ash+ I(super^2) + super*log(age) + super*water)
-
-base=lm(strength ~ cement + super + age + blast + water + 
-     ash)
-plot(fitted(base), strength-fitted(base))
-plot(base)
+confstr=predict(stepwise, p2, se.fit = TRUE, interval = "confidence", level = 0.95)
+print(confstr$fit)
